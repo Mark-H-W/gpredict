@@ -56,7 +56,7 @@ static void config_cb(GtkWidget * menuitem, gpointer data)
 {
     GtkSatModule   *module = GTK_SAT_MODULE(data);
 
-    if (module->rigctrlwin || module->rotctrlwin)
+    if (module->rigctrlwin || module->rotctrlwin || module->autotracksettingswin)
     {
         GtkWidget      *dialog;
 
@@ -66,7 +66,8 @@ static void config_cb(GtkWidget * menuitem, gpointer data)
                                         GTK_BUTTONS_OK,
                                         _
                                         ("A module can not be configured while the "
-                                         "radio or rotator controller is active.\n\n"
+                                         "radio controller, rotator controller, or "
+                                         "autotrack settings window is active.\n\n"
                                          "Please close the radio and rotator controllers "
                                          "and try again."));
         gtk_dialog_run(GTK_DIALOG(dialog));
@@ -920,10 +921,151 @@ static void rotctrl_cb(GtkWidget * menuitem, gpointer data)
     gtk_widget_show_all(module->rotctrlwin);
 }
 
-/** Autotrack activated */
-static void autotrack_cb(GtkCheckMenuItem * menuitem, gpointer data)
+/** Autotrack toggled */
+static void autotrack_cb(GtkWidget * checkbutton, gpointer data)
 {
-    GTK_SAT_MODULE(data)->autotrack = gtk_check_menu_item_get_active(menuitem);
+    GTK_SAT_MODULE(data)->autotrack = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(checkbutton));
+}
+
+
+
+/** Autotrack priority changed */
+static void priority_change_cb(GtkWidget * spinbutton, gpointer data)
+{
+    sat_t           *sat = SAT(data);
+
+    sat->priority = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(spinbutton));
+}
+
+/** Autotrack minimum elevation changed */
+static void priority_elevation_change_cb(GtkWidget * spinbutton, gpointer data)
+{
+    GtkSatModule   *module = GTK_SAT_MODULE(data);
+
+    module->minAutotrackEle = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(spinbutton));
+}
+
+/**
+ * Destroy autotrack settings window.
+ *
+ * @param window Pointer to autotrack settings window.
+ * @param data Pointer to the GtkSatModule to which this window is attached.
+ * 
+ * This function is called automatically when the window is destroyed.
+ */
+static void destroy_autotrack_settings(GtkWidget * window, gpointer data)
+{
+    GtkSatModule   *module = GTK_SAT_MODULE(data);
+
+    (void)window;
+
+    module->autotracksettingswin = NULL;
+    module->autotracksettings = NULL;
+}
+
+/**
+ * Open autotrack settings window.
+ *
+ * @param menuitem The menuitem that was selected.
+ * @param data Pointer the GtkSatModule.
+ */
+static void autotrack_settings_cb(GtkWidget * menuitem, gpointer data)
+{
+    GtkSatModule       *module = GTK_SAT_MODULE(data);
+    GtkWidget          *element;
+    gchar              *buff;
+    sat_t              *sat = NULL;
+    GList              *satlist;
+    GList              *iter;
+    guint               i, n;
+
+    (void)menuitem;
+
+    if (module->autotracksettingswin != NULL)
+    {
+        /* there is already an autotrack settings window for this module */
+        gtk_window_present(GTK_WINDOW(module->autotracksettingswin));
+        return;
+    }
+
+    module->autotracksettings = gtk_grid_new();
+
+    /* autotrack */
+    element = gtk_check_button_new_with_label(_("Autotrack"));
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(element),
+                                   module->autotrack);
+    gtk_grid_attach(GTK_GRID(module->autotracksettings), element, 1, 0, 1, 1);
+    g_signal_connect(element, "toggled", G_CALLBACK(autotrack_cb), module);
+
+    /* headings */
+    element = gtk_label_new(NULL);
+    gtk_label_set_markup(GTK_LABEL(element), "<b>Satellite</b>");
+    gtk_grid_attach(GTK_GRID(module->autotracksettings), element, 0, 1, 1, 1);
+    element = gtk_label_new("       ");
+    gtk_grid_attach(GTK_GRID(module->autotracksettings), element, 1, 1, 1, 1);
+    element = gtk_label_new(NULL);
+    gtk_label_set_markup(GTK_LABEL(element), "<b>Priority Level</b>");
+    gtk_grid_attach(GTK_GRID(module->autotracksettings), element, 2, 1, 1, 1);
+
+    /* list of satellites in module with priority settings */
+    satlist = g_hash_table_get_values(module->satellites);
+    iter = satlist;
+
+    n = g_list_length(satlist);
+
+    i = 0;
+    while (i++ < n) {
+        sat = (sat_t *) iter->data;
+
+        element = gtk_label_new(sat->name);
+        gtk_grid_attach(GTK_GRID(module->autotracksettings), element, 0, i + 1, 1, 1);
+
+        element = gtk_spin_button_new_with_range(0.0, 10.0, 1.0);
+        gtk_spin_button_set_value(GTK_SPIN_BUTTON(element), sat->priority);
+        g_signal_connect(element, "value-changed", G_CALLBACK(priority_change_cb), sat);
+        gtk_grid_attach(GTK_GRID(module->autotracksettings), element, 2, i + 1, 1, 1);
+
+        iter = iter->next;
+    }
+
+    element = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
+    gtk_widget_set_margin_bottom(element, 10);
+    gtk_widget_set_margin_top(element, 10);
+    gtk_grid_attach(GTK_GRID(module->autotracksettings), element, 0, i + 1, 3, 1);
+
+
+    /* min autotrack priority elevation*/
+    element = gtk_label_new(NULL);
+    gtk_label_set_markup(GTK_LABEL(element), "<b>minimum elevation for priority</b>");
+    gtk_grid_attach(GTK_GRID(module->autotracksettings), element, 0, i + 2, 2, 1);
+
+    element = gtk_spin_button_new_with_range(0.0, 90.0, 1.0);
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(element), module->minAutotrackEle);
+    g_signal_connect(element, "value-changed", G_CALLBACK(priority_elevation_change_cb), module);
+    gtk_grid_attach(GTK_GRID(module->autotracksettings), element, 2, i + 2, 1, 1);
+
+    g_list_free(satlist);
+
+    /* create a window */
+    module->autotracksettingswin = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    buff = g_strdup_printf(_("Autotrack Settings: %s"), module->name);
+    gtk_window_set_title(GTK_WINDOW(module->autotracksettingswin), buff);
+    g_free(buff);
+    g_signal_connect(G_OBJECT(module->autotracksettingswin), "delete_event",
+                     G_CALLBACK(window_delete), module);
+    g_signal_connect(G_OBJECT(module->autotracksettingswin), "destroy",
+                     G_CALLBACK(destroy_autotrack_settings), module);
+
+    /* window icon */
+    buff = icon_file_name("gpredict-antenna.png");
+    gtk_window_set_icon_from_file(GTK_WINDOW(module->autotracksettingswin), buff, NULL);
+    g_free(buff);
+
+    gtk_container_set_border_width(GTK_CONTAINER(module->autotracksettingswin), 10);
+
+    gtk_container_add(GTK_CONTAINER(module->autotracksettingswin), module->autotracksettings);
+
+    gtk_widget_show_all(module->autotracksettingswin);
 }
 
 /**
@@ -1139,12 +1281,10 @@ void gtk_sat_module_popup(GtkSatModule * module)
     menuitem = gtk_separator_menu_item_new();
     gtk_menu_shell_append(GTK_MENU_SHELL(menu), menuitem);
 
-    /* autotrack */
-    menuitem = gtk_check_menu_item_new_with_label(_("Autotrack"));
-    gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitem),
-                                   module->autotrack);
+    /* Autotrack Menu */
+    menuitem = gtk_menu_item_new_with_label(_("Autotrack settings"));
     gtk_menu_shell_append(GTK_MENU_SHELL(menu), menuitem);
-    g_signal_connect(menuitem, "activate", G_CALLBACK(autotrack_cb), module);
+    g_signal_connect(menuitem, "activate", G_CALLBACK(autotrack_settings_cb), module);
 
     /* select satellite submenu */
     menuitem = gtk_menu_item_new_with_label(_("Select satellite"));

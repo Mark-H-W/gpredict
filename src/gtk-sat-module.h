@@ -58,6 +58,8 @@ struct _gtk_sat_module {
     GtkWidget      *rotctrl;    /*!< Rotator controller widget */
     GtkWidget      *rigctrlwin; /*!< Radio controller window */
     GtkWidget      *rigctrl;    /*!< Radio controller widget */
+    GtkWidget      *autotracksettingswin;   /*!< autotrack settings window */
+    GtkWidget      *autotracksettings;      /*!< autotrack settings widget */
     GtkWidget      *skgwin;     /*!< Sky at glance window */
     GtkWidget      *skg;        /*!< Sky at glance widget */
     gdouble         lastSkgUpd; /*!< Daynum of last GtkSkyGlance update */
@@ -115,6 +117,7 @@ struct _gtk_sat_module {
     /* auto-tracking */
     gint            target;     /*!< Target satellite */
     gboolean        autotrack;  /*!< Whether automatic tracking is enabled */
+    gint            minAutotrackEle; /*!< The minimum elevation where autotrack priority applies */
 
     /* location structure */
     struct gps_data_t *gps_data;        /*!< GPSD data structure */

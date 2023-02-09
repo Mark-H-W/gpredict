@@ -171,6 +171,7 @@ gint gtk_sat_data_read_sat(gint catnum, sat_t * sat)
         sat->phase = 0.0;
         sat->aos = 0.0;
         sat->los = 0.0;
+        sat->priority = 0;
 
         /* calculate satellite data at epoch */
         gtk_sat_data_init_sat(sat, NULL);
@@ -329,6 +330,7 @@ void gtk_sat_data_copy_sat(const sat_t * source, sat_t * dest, qth_t * qth)
     dest->phase = 0.0;
     dest->aos = 0.0;
     dest->los = 0.0;
+    dest->priority = 0;
 
     gtk_sat_data_init_sat(dest, qth);
 }

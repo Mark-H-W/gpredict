@@ -81,13 +81,24 @@ static void update_autotrack(GtkSatModule * module)
     double          next_aos;
     gint            next_sat;
     int             min_ele = sat_cfg_get_int(SAT_CFG_INT_PRED_MIN_EL);
+    gint            next_priority = -1;
+    gint            priority;
 
     if (module->target > 0)
         sat = g_hash_table_lookup(module->satellites, &module->target);
 
-    /* do nothing if current target is still above horizon */
+    /* set priority of current sat */
     if (sat != NULL && sat->el > min_ele)
-        return;
+    {
+        if (sat->el >= module->minAutotrackEle)
+        {
+            next_priority = sat->priority;
+        }
+        else
+        {
+            next_priority = 0;
+        }
+    }
 
     /* set target to satellite with next AOS */
     satlist = g_hash_table_get_values(module->satellites);
@@ -104,15 +115,26 @@ static void update_autotrack(GtkSatModule * module)
     {
         sat = (sat_t *) iter->data;
 
-        /* if sat is above horizon, select it and we are done */
-        if (sat->el > min_ele)
+        /* If sat is below min priority tracking elevation, its priority is 0 */
+        if (sat->el >= module->minAutotrackEle) 
         {
+            priority = sat->priority;
+        }
+        else
+        {
+            priority = 0;
+        }
+
+        /* if sat is above horizon, with high priority, select it */
+        if (sat->el > min_ele && priority > next_priority)
+        {
+            next_priority = priority;
             next_sat = sat->tle.catnr;
-            break;
         }
 
         /* we have a candidate if AOS is in the future */
-        if (sat->aos > module->tmgCdnum && sat->aos < next_aos)
+        if (sat->aos > module->tmgCdnum && sat->aos < next_aos && 
+                                        next_priority == -1)
         {
             next_aos = sat->aos;
             next_sat = sat->tle.catnr;
@@ -260,6 +282,7 @@ static void gtk_sat_module_init(GtkSatModule * module,
 
     module->target = -1;
     module->autotrack = FALSE;
+    module->minAutotrackEle = 0;
 }
 
 GType gtk_sat_module_get_type()
